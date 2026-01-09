@@ -17,9 +17,6 @@ export default defineConfig({
         copyFileSync('src/assets/icons/icon48.png', 'dist/icons/icon48.png');
         copyFileSync('src/assets/icons/icon128.png', 'dist/icons/icon128.png');
 
-        // Copy background.js
-        copyFileSync('public/background.js', 'dist/background.js');
-
         // Copy manifest.json
         copyFileSync('public/manifest.json', 'dist/manifest.json');
       }
@@ -29,7 +26,11 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html')
+        main: resolve(__dirname, 'index.html'),
+        background: resolve(__dirname, 'src/background.ts')
+      },
+      output: {
+        entryFileNames: '[name].js'
       }
     }
   }
