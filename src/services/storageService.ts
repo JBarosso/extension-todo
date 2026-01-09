@@ -22,6 +22,11 @@ export interface GitHubSettings {
     columnId: string;
 }
 
+export interface GmailSettings {
+    authenticated: boolean;
+    filter: 'starred' | 'unread';
+}
+
 export type Theme = 'light' | 'dark' | 'system';
 
 export interface StorageData {
