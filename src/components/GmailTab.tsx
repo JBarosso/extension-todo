@@ -1,18 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { GmailEmail } from '../services/gmailService';
 import { authenticateGmail, fetchEmails, markAsRead, markAsUnread, toggleStar, revokeGmailAuth, deleteEmail } from '../services/gmailService';
 import EmailDetailModal from './EmailDetailModal';
 
 type FilterType = 'starred' | 'unread';
 
-export default function GmailTab() {
-    const [authenticated, setAuthenticated] = useState(false);
-    const [token, setToken] = useState<string | null>(null);
-    const [emails, setEmails] = useState<GmailEmail[]>([]);
+interface GmailTabProps {
+    cachedEmails: GmailEmail[];
+    lastFetch: number;
+    gmailToken: string | null;
+    gmailAuthenticated: boolean;
+    onUpdateCache: (emails: GmailEmail[]) => void;
+    onUpdateAuth: (token: string | null, authenticated: boolean) => void;
+}
+
+export default function GmailTab({ cachedEmails, gmailToken, gmailAuthenticated, onUpdateCache, onUpdateAuth }: GmailTabProps) {
+    const [authenticated, setAuthenticated] = useState(gmailAuthenticated);
+    const [token, setToken] = useState<string | null>(gmailToken);
+    const [emails, setEmails] = useState<GmailEmail[]>(cachedEmails);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [filter, setFilter] = useState<FilterType>('starred');
+    const [filter, setFilter] = useState<FilterType>('unread');
     const [selectedEmail, setSelectedEmail] = useState<GmailEmail | null>(null);
+
+    useEffect(() => {
+        // Update local state when cache changes
+        setEmails(cachedEmails);
+    }, [cachedEmails]);
 
     const handleAuthenticate = async () => {
         setLoading(true);
@@ -21,10 +35,20 @@ export default function GmailTab() {
             const authToken = await authenticateGmail();
             setToken(authToken);
             setAuthenticated(true);
-            await loadEmails(authToken, filter);
+            onUpdateAuth(authToken, true);
+
+            // Check cache
+            const isCacheEmpty = cachedEmails.length === 0;
+            if (isCacheEmpty) {
+                await loadEmails(authToken, filter, false);
+            } else {
+                // Use cache, optionally refresh in background
+                await loadEmails(authToken, filter, true);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erreur d\'authentification');
             setAuthenticated(false);
+            onUpdateAuth(null, false);
         } finally {
             setLoading(false);
         }
@@ -41,10 +65,14 @@ export default function GmailTab() {
         setToken(null);
         setAuthenticated(false);
         setEmails([]);
+        onUpdateCache([]);
+        onUpdateAuth(null, false);
     };
 
-    const loadEmails = async (authToken: string, filterType: FilterType) => {
-        setLoading(true);
+    const loadEmails = async (authToken: string, filterType: FilterType, isBackgroundRefresh = false) => {
+        if (!isBackgroundRefresh) {
+            setLoading(true);
+        }
         setError(null);
         try {
             // Only search in inbox, excluding spam and trash
@@ -52,12 +80,31 @@ export default function GmailTab() {
                 ? 'in:inbox is:starred'
                 : 'in:inbox is:unread';
             const fetchedEmails = await fetchEmails(authToken, query);
-            setEmails(fetchedEmails);
+
+            // Smart merge: keep locally modified emails
+            const mergedEmails = mergeEmails(emails, fetchedEmails);
+
+            setEmails(mergedEmails);
+            onUpdateCache(mergedEmails);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erreur de chargement');
         } finally {
             setLoading(false);
         }
+    };
+
+    // Smart merge function
+    const mergeEmails = (cached: GmailEmail[], fresh: GmailEmail[]): GmailEmail[] => {
+        return fresh.map(freshEmail => {
+            const cachedEmail = cached.find(c => c.id === freshEmail.id);
+            // If locally modified recently (< 5s), keep cached version
+            if (cachedEmail?.locallyModified &&
+                cachedEmail.modifiedAt &&
+                Date.now() - cachedEmail.modifiedAt < 5000) {
+                return cachedEmail;
+            }
+            return freshEmail;
+        });
     };
 
     const handleFilterChange = async (newFilter: FilterType) => {
@@ -198,15 +245,6 @@ export default function GmailTab() {
             {/* Filter tabs */}
             <div className="flex border-b border-gray-200 dark:border-gray-700">
                 <button
-                    onClick={() => handleFilterChange('starred')}
-                    className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${filter === 'starred'
-                        ? 'text-red-600 dark:text-red-400 border-b-2 border-red-500'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                        }`}
-                >
-                    ⭐ Étoilés
-                </button>
-                <button
                     onClick={() => handleFilterChange('unread')}
                     className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${filter === 'unread'
                         ? 'text-red-600 dark:text-red-400 border-b-2 border-red-500'
@@ -214,6 +252,15 @@ export default function GmailTab() {
                         }`}
                 >
                     📧 Non lus
+                </button>
+                <button
+                    onClick={() => handleFilterChange('starred')}
+                    className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${filter === 'starred'
+                        ? 'text-red-600 dark:text-red-400 border-b-2 border-red-500'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                >
+                    ⭐ Étoilés
                 </button>
             </div>
 

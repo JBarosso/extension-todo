@@ -14,6 +14,8 @@ interface CacheState {
   gmailEmails: GmailEmail[];
   lastGithubFetch: number;
   lastGmailFetch: number;
+  gmailToken: string | null;
+  gmailAuthenticated: boolean;
 }
 
 function AppContent() {
@@ -24,6 +26,8 @@ function AppContent() {
     gmailEmails: [],
     lastGithubFetch: 0,
     lastGmailFetch: 0,
+    gmailToken: null,
+    gmailAuthenticated: false,
   });
 
   const updateGitHubCache = (issues: GitHubIssue[]) => {
@@ -39,6 +43,14 @@ function AppContent() {
       ...prev,
       gmailEmails: emails,
       lastGmailFetch: Date.now(),
+    }));
+  };
+
+  const updateGmailAuth = (token: string | null, authenticated: boolean) => {
+    setCache(prev => ({
+      ...prev,
+      gmailToken: token,
+      gmailAuthenticated: authenticated,
     }));
   };
 
@@ -59,7 +71,10 @@ function AppContent() {
           <GmailTab
             cachedEmails={cache.gmailEmails}
             lastFetch={cache.lastGmailFetch}
+            gmailToken={cache.gmailToken}
+            gmailAuthenticated={cache.gmailAuthenticated}
             onUpdateCache={updateGmailCache}
+            onUpdateAuth={updateGmailAuth}
           />
         );
       default:

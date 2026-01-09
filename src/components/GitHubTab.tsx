@@ -18,7 +18,6 @@ export default function GitHubTab({ cachedIssues, lastFetch, onUpdateCache }: Gi
     const [settings, setSettings] = useState<GitHubSettings | null>(null);
     const [issues, setIssues] = useState<GitHubIssue[]>(cachedIssues);
     const [loading, setLoading] = useState(false);
-    const [backgroundLoading, setBackgroundLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState(false);
     const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
@@ -54,9 +53,7 @@ export default function GitHubTab({ cachedIssues, lastFetch, onUpdateCache }: Gi
     };
 
     const loadIssues = async (s: GitHubSettings, isBackgroundRefresh = false) => {
-        if (isBackgroundRefresh) {
-            setBackgroundLoading(true);
-        } else {
+        if (!isBackgroundRefresh) {
             setLoading(true);
         }
         setError(null);
@@ -74,7 +71,6 @@ export default function GitHubTab({ cachedIssues, lastFetch, onUpdateCache }: Gi
             setError(err instanceof Error ? err.message : 'Erreur inconnue');
         } finally {
             setLoading(false);
-            setBackgroundLoading(false);
         }
     };
 
