@@ -225,29 +225,40 @@ function IssueItem({ issue, onClick }: IssueItemProps) {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 dark:text-gray-100 leading-snug">
-                        {issue.title}
-                    </p>
+                    <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm text-gray-900 dark:text-gray-100 leading-snug">
+                                {issue.title}
+                            </p>
 
-                    {/* Labels */}
-                    {issue.labels.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                            {issue.labels.map(label => (
-                                <span
-                                    key={label.name}
-                                    className="px-1.5 py-0.5 text-[10px] font-medium rounded-full"
-                                    style={{
-                                        backgroundColor: `#${label.color}20`,
-                                        color: `#${label.color}`
-                                    }}
-                                >
-                                    {label.name}
-                                </span>
-                            ))}
+                            {/* Labels */}
+                            {issue.labels.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                    {issue.labels.map(label => (
+                                        <span
+                                            key={label.name}
+                                            className="px-1.5 py-0.5 text-[10px] font-medium rounded-full flex-shrink-0"
+                                            style={{
+                                                backgroundColor: `#${label.color}20`,
+                                                color: `#${label.color}`
+                                            }}
+                                        >
+                                            {label.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
 
-                    {/* Meta */}
+                        {/* Date / Meta */}
+                        {issue.createdAt && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 flex items-center gap-1 flex-shrink-0">
+                                {new Date(issue.createdAt).toLocaleDateString()}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Meta - Number & Assignee */}
                     {issue.number > 0 && (
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                             #{issue.number}
