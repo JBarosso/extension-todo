@@ -4,6 +4,7 @@ import { getGitHubSettings } from '../services/storageService';
 import type { GitHubIssue } from '../services/githubService';
 import { fetchColumnCards } from '../services/githubService';
 import GitHubSettingsForm from './GitHubSettings';
+import IssueDetailModal from './IssueDetailModal';
 
 export default function GitHubTab() {
     const [settings, setSettings] = useState<GitHubSettings | null>(null);
@@ -11,6 +12,7 @@ export default function GitHubTab() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState(false);
+    const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
 
     useEffect(() => {
         loadSettings();
@@ -132,30 +134,36 @@ export default function GitHubTab() {
                 ) : (
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
                         {issues.map(issue => (
-                            <IssueItem key={issue.id} issue={issue} />
+                            <IssueItem key={issue.id} issue={issue} onClick={() => setSelectedIssue(issue)} />
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Issue Detail Modal */}
+            {selectedIssue && settings && (
+                <IssueDetailModal
+                    issue={selectedIssue}
+                    token={settings.token}
+                    repo={settings.repo}
+                    onClose={() => setSelectedIssue(null)}
+                    onUpdate={handleRefresh}
+                />
+            )}
         </div>
     );
 }
 
 interface IssueItemProps {
     issue: GitHubIssue;
+    onClick: () => void;
 }
 
-function IssueItem({ issue }: IssueItemProps) {
-    const handleClick = () => {
-        if (issue.url) {
-            window.open(issue.url, '_blank');
-        }
-    };
-
+function IssueItem({ issue, onClick }: IssueItemProps) {
     return (
         <div
-            onClick={handleClick}
-            className={`px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${issue.url ? 'cursor-pointer' : ''}`}
+            onClick={onClick}
+            className="px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
         >
             <div className="flex items-start gap-2">
                 {/* Issue icon */}

@@ -12,6 +12,8 @@ export interface Todo {
     categoryId?: string;
     completed: boolean;
     createdAt: number;
+    startDate?: number; // timestamp in milliseconds
+    reminders?: number[]; // array of minutes before (e.g., [15, 60, 1440])
 }
 
 export interface GitHubSettings {
@@ -69,7 +71,7 @@ export async function saveTodos(todos: Todo[]): Promise<void> {
 }
 
 // Add a new todo
-export async function addTodo(title: string, categoryId?: string, comment?: string): Promise<Todo> {
+export async function addTodo(title: string, categoryId?: string, comment?: string, startDate?: number, reminders?: number[]): Promise<Todo> {
     const todos = await getTodos();
     const newTodo: Todo = {
         id: crypto.randomUUID(),
@@ -77,7 +79,9 @@ export async function addTodo(title: string, categoryId?: string, comment?: stri
         comment,
         categoryId,
         completed: false,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        startDate,
+        reminders
     };
     todos.push(newTodo);
     await saveTodos(todos);

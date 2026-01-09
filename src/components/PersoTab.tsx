@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Todo, Category } from '../services/storageService';
 import { getTodos, addTodo, toggleTodo, deleteTodo, updateTodo, getCategories } from '../services/storageService';
+import { rescheduleReminders, cancelReminders } from '../services/reminderService';
 
 export default function PersoTab() {
     const [todos, setTodos] = useState<Todo[]>([]);
@@ -13,6 +14,9 @@ export default function PersoTab() {
     const [title, setTitle] = useState('');
     const [comment, setComment] = useState('');
     const [categoryId, setCategoryId] = useState<string>('');
+    const [startDate, setStartDate] = useState('');
+    const [startTime, setStartTime] = useState('');
+    const [reminders, setReminders] = useState<number[]>([15]); // Default: 15min before
 
     useEffect(() => {
         loadData();
@@ -35,6 +39,9 @@ export default function PersoTab() {
         setTitle('');
         setComment('');
         setCategoryId('');
+        setStartDate('');
+        setStartTime('');
+        setReminders([15]);
         setEditingTodo(null);
         setShowForm(false);
     };
@@ -43,19 +50,46 @@ export default function PersoTab() {
         e.preventDefault();
         if (!title.trim()) return;
 
+        // Parse start date/time
+        let startDateTime: number | undefined;
+        if (startDate && startTime) {
+            startDateTime = new Date(`${startDate}T${startTime}`).getTime();
+        }
+
         if (editingTodo) {
-            await updateTodo(editingTodo.id, {
+            const updates = {
                 title: title.trim(),
                 comment: comment.trim() || undefined,
-                categoryId: categoryId || undefined
-            });
+                categoryId: categoryId || undefined,
+                startDate: startDateTime,
+                reminders: startDateTime ? reminders : undefined
+            };
+            await updateTodo(editingTodo.id, updates);
+
+            // Update reminders
+            if (startDateTime && reminders.length > 0) {
+                await rescheduleReminders(editingTodo.id, startDateTime, reminders);
+            } else {
+                await cancelReminders(editingTodo.id);
+            }
+
             setTodos(todos.map(t =>
-                t.id === editingTodo.id
-                    ? { ...t, title: title.trim(), comment: comment.trim() || undefined, categoryId: categoryId || undefined }
-                    : t
+                t.id === editingTodo.id ? { ...t, ...updates } : t
             ));
         } else {
-            const newTodo = await addTodo(title.trim(), categoryId || undefined, comment.trim() || undefined);
+            const newTodo = await addTodo(
+                title.trim(),
+                categoryId || undefined,
+                comment.trim() || undefined,
+                startDateTime,
+                startDateTime ? reminders : undefined
+            );
+
+            // Schedule reminders
+            if (startDateTime && reminders.length > 0) {
+                await rescheduleReminders(newTodo.id, startDateTime, reminders);
+            }
+
             setTodos([...todos, newTodo]);
         }
         resetForm();
@@ -66,17 +100,37 @@ export default function PersoTab() {
         setTitle(todo.title);
         setComment(todo.comment || '');
         setCategoryId(todo.categoryId || '');
+
+        // Parse start date/time
+        if (todo.startDate) {
+            const date = new Date(todo.startDate);
+            setStartDate(date.toISOString().split('T')[0]);
+            setStartTime(date.toTimeString().slice(0, 5));
+        } else {
+            setStartDate('');
+            setStartTime('');
+        }
+
+        setReminders(todo.reminders || [15]);
         setShowForm(true);
     };
 
     const handleToggle = async (id: string) => {
+        const todo = todos.find(t => t.id === id);
         await toggleTodo(id);
+
+        // Cancel reminders if completing task
+        if (todo && !todo.completed) {
+            await cancelReminders(id);
+        }
+
         setTodos(todos.map(t =>
             t.id === id ? { ...t, completed: !t.completed } : t
         ));
     };
 
     const handleDelete = async (id: string) => {
+        await cancelReminders(id);
         await deleteTodo(id);
         setTodos(todos.filter(t => t.id !== id));
     };
@@ -116,8 +170,8 @@ export default function PersoTab() {
                             type="button"
                             onClick={() => setCategoryId('')}
                             className={`px-2 py-1 text-xs rounded-full border transition-colors ${!categoryId
-                                    ? 'bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500'
-                                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                ? 'bg-gray-200 dark:bg-gray-700 border-gray-400 dark:border-gray-500'
+                                : 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
                                 }`}
                         >
                             Sans catégorie
@@ -128,8 +182,8 @@ export default function PersoTab() {
                                 type="button"
                                 onClick={() => setCategoryId(cat.id)}
                                 className={`px-2 py-1 text-xs rounded-full border transition-colors ${categoryId === cat.id
-                                        ? 'border-current'
-                                        : 'border-transparent hover:opacity-80'
+                                    ? 'border-current'
+                                    : 'border-transparent hover:opacity-80'
                                     }`}
                                 style={{
                                     backgroundColor: `${cat.color}20`,
@@ -151,6 +205,67 @@ export default function PersoTab() {
                                    bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     />
+
+                    {/* Date and Time */}
+                    <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            Date et heure de début (optionnel)
+                        </label>
+                        <div className="flex gap-2">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 
+                                           bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <input
+                                type="time"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                disabled={!startDate}
+                                className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 
+                                           bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                           focus:outline-none focus:ring-2 focus:ring-blue-500
+                                           disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Reminders */}
+                    {startDate && startTime && (
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                Rappels
+                            </label>
+                            <div className="flex gap-2 flex-wrap">
+                                {[15, 60, 1440].map(minutes => {
+                                    const label = minutes === 15 ? '15 min' : minutes === 60 ? '1 heure' : '1 jour';
+                                    const isSelected = reminders.includes(minutes);
+                                    return (
+                                        <button
+                                            key={minutes}
+                                            type="button"
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setReminders(reminders.filter(m => m !== minutes));
+                                                } else {
+                                                    setReminders([...reminders, minutes]);
+                                                }
+                                            }}
+                                            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${isSelected
+                                                ? 'bg-blue-500 border-blue-500 text-white'
+                                                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                }`}
+                                        >
+                                            {label} avant
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="flex gap-2">
                         <button
@@ -273,6 +388,14 @@ function TodoItem({ todo, category, onToggle, onEdit, onDelete }: TodoItemProps)
                                 }}
                             >
                                 {category.name}
+                            </span>
+                        )}
+                        {todo.startDate && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {new Date(todo.startDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                         )}
                     </div>

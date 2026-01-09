@@ -367,6 +367,135 @@ async function fetchClassicColumnCards(token: string, columnId: string): Promise
   return issues;
 }
 
+// Fetch full issue details including body and comments
+export async function fetchIssueDetails(token: string, owner: string, repo: string, issueNumber: number) {
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erreur GitHub API: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+// Fetch issue comments
+export async function fetchIssueComments(token: string, owner: string, repo: string, issueNumber: number) {
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erreur GitHub API: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+// Update issue labels
+export async function updateIssueLabels(token: string, owner: string, repo: string, issueNumber: number, labels: string[]) {
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ labels })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erreur GitHub API: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+// Add a comment to an issue
+export async function addIssueComment(token: string, owner: string, repo: string, issueNumber: number, body: string) {
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ body })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erreur GitHub API: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+// Fetch available labels for a repository
+export async function fetchRepoLabels(token: string, owner: string, repo: string) {
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/labels`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erreur GitHub API: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+// Close an issue
+export async function closeIssue(token: string, owner: string, repo: string, issueNumber: number) {
+  const response = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ state: 'closed' })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erreur GitHub API: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
 // Validate GitHub settings
 export async function validateSettings(settings: GitHubSettings): Promise<boolean> {
   try {
