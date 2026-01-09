@@ -9,6 +9,8 @@ export interface GitHubIssue {
   labels: { name: string; color: string }[];
   assignee?: { login: string; avatarUrl: string };
   createdAt: string;
+  locallyModified?: boolean;
+  modifiedAt?: number;
 }
 
 // Fetch project columns - just get the field options

@@ -6,10 +6,19 @@ import { fetchColumnCards } from '../services/githubService';
 import GitHubSettingsForm from './GitHubSettings';
 import IssueDetailModal from './IssueDetailModal';
 
-export default function GitHubTab() {
+interface GitHubTabProps {
+    cachedIssues: GitHubIssue[];
+    lastFetch: number;
+    onUpdateCache: (issues: GitHubIssue[]) => void;
+}
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+export default function GitHubTab({ cachedIssues, lastFetch, onUpdateCache }: GitHubTabProps) {
     const [settings, setSettings] = useState<GitHubSettings | null>(null);
-    const [issues, setIssues] = useState<GitHubIssue[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [issues, setIssues] = useState<GitHubIssue[]>(cachedIssues);
+    const [loading, setLoading] = useState(false);
+    const [backgroundLoading, setBackgroundLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState(false);
     const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
@@ -18,31 +27,69 @@ export default function GitHubTab() {
         loadSettings();
     }, []);
 
+    useEffect(() => {
+        // Update local state when cache changes
+        setIssues(cachedIssues);
+    }, [cachedIssues]);
+
     const loadSettings = async () => {
         const storedSettings = await getGitHubSettings();
         setSettings(storedSettings);
 
         if (storedSettings.token && storedSettings.columnId) {
-            await loadIssues(storedSettings);
+            const isCacheStale = Date.now() - lastFetch > CACHE_DURATION;
+            const isCacheEmpty = cachedIssues.length === 0;
+
+            if (isCacheEmpty) {
+                // No cache, load with spinner
+                setLoading(true);
+                await loadIssues(storedSettings, false);
+            } else if (isCacheStale) {
+                // Cache exists but stale, background refresh
+                await loadIssues(storedSettings, true);
+            }
         } else {
             setShowSettings(true);
-            setLoading(false);
         }
     };
 
-    const loadIssues = async (s: GitHubSettings) => {
-        setLoading(true);
+    const loadIssues = async (s: GitHubSettings, isBackgroundRefresh = false) => {
+        if (isBackgroundRefresh) {
+            setBackgroundLoading(true);
+        } else {
+            setLoading(true);
+        }
         setError(null);
 
         try {
             const fetchedIssues = await fetchColumnCards(s);
-            setIssues(fetchedIssues);
+
+            // Smart merge: keep locally modified issues
+            const mergedIssues = mergeIssues(issues, fetchedIssues);
+
+            setIssues(mergedIssues);
+            onUpdateCache(mergedIssues);
             setShowSettings(false);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erreur inconnue');
         } finally {
             setLoading(false);
+            setBackgroundLoading(false);
         }
+    };
+
+    // Smart merge function
+    const mergeIssues = (cached: GitHubIssue[], fresh: GitHubIssue[]): GitHubIssue[] => {
+        return fresh.map(freshIssue => {
+            const cachedIssue = cached.find(c => c.id === freshIssue.id);
+            // If locally modified recently (< 5s), keep cached version
+            if (cachedIssue?.locallyModified &&
+                cachedIssue.modifiedAt &&
+                Date.now() - cachedIssue.modifiedAt < 5000) {
+                return cachedIssue;
+            }
+            return freshIssue;
+        });
     };
 
     const handleSettingsSave = async (newSettings: GitHubSettings) => {

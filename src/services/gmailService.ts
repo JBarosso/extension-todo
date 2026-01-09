@@ -11,6 +11,8 @@ export interface GmailEmail {
     isRead: boolean;
     isStarred: boolean;
     labels: string[];
+    locallyModified?: boolean;
+    modifiedAt?: number;
 }
 
 // Authenticate and get OAuth token
@@ -49,9 +51,9 @@ export async function revokeGmailAuth(token: string): Promise<void> {
 // Fetch emails based on query
 export async function fetchEmails(token: string, query: string = 'is:starred'): Promise<GmailEmail[]> {
     try {
-        // Get message IDs
+        // Get message IDs - reduced to 20 to avoid rate limiting
         const listResponse = await fetch(
-            `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=20`,
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -71,29 +73,48 @@ export async function fetchEmails(token: string, query: string = 'is:starred'): 
             return [];
         }
 
-        // Fetch details for each message
-        const emailPromises = messages.map(async (msg: { id: string }) => {
-            const detailResponse = await fetch(
-                `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
+        // Fetch details in smaller batches to avoid rate limiting
+        const batchSize = 5;
+        const emails: GmailEmail[] = [];
+
+        for (let i = 0; i < messages.length; i += batchSize) {
+            const batch = messages.slice(i, i + batchSize);
+
+            const batchPromises = batch.map(async (msg: { id: string }) => {
+                try {
+                    const detailResponse = await fetch(
+                        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+
+                    if (!detailResponse.ok) {
+                        console.error(`Failed to fetch message ${msg.id}: ${detailResponse.status}`);
+                        return null;
                     }
+
+                    const detail = await detailResponse.json();
+                    return parseEmailFromGmailAPI(detail);
+                } catch (error) {
+                    console.error(`Error fetching message ${msg.id}:`, error);
+                    return null;
                 }
-            );
+            });
 
-            if (!detailResponse.ok) {
-                console.error(`Failed to fetch message ${msg.id}`);
-                return null;
+            const batchResults = await Promise.all(batchPromises);
+            emails.push(...batchResults.filter((email): email is GmailEmail => email !== null));
+
+            // Add delay between batches to avoid rate limiting
+            if (i + batchSize < messages.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
+        }
 
-            const detail = await detailResponse.json();
-            return parseEmailFromGmailAPI(detail);
-        });
-
-        const emails = await Promise.all(emailPromises);
-        return emails.filter((email): email is GmailEmail => email !== null);
+        return emails;
     } catch (error) {
         console.error('Error fetching emails:', error);
         throw error;
@@ -180,4 +201,112 @@ export async function toggleStar(token: string, messageId: string, starred: bool
             )
         }
     );
+}
+
+// Fetch full email body
+export async function fetchEmailBody(token: string, messageId: string): Promise<{ body: string; isHtml: boolean }> {
+    const response = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`,
+        {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Gmail API error: ${response.status}`);
+    }
+
+    const message = await response.json();
+
+    // Extract body from payload
+    const getBody = (payload: any): { body: string; isHtml: boolean } => {
+        if (payload.body?.data) {
+            return {
+                body: atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/')),
+                isHtml: payload.mimeType === 'text/html'
+            };
+        }
+
+        if (payload.parts) {
+            // Try to find HTML part first, then plain text
+            const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
+            if (htmlPart?.body?.data) {
+                return {
+                    body: atob(htmlPart.body.data.replace(/-/g, '+').replace(/_/g, '/')),
+                    isHtml: true
+                };
+            }
+
+            const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
+            if (textPart?.body?.data) {
+                return {
+                    body: atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/')),
+                    isHtml: false
+                };
+            }
+        }
+
+        return { body: '', isHtml: false };
+    };
+
+    return getBody(message.payload);
+}
+
+// Send reply to email
+export async function sendReply(token: string, messageId: string, threadId: string, replyBody: string, to: string, subject: string): Promise<void> {
+    // Create email in RFC 2822 format
+    const email = [
+        `To: ${to}`,
+        `Subject: Re: ${subject}`,
+        `In-Reply-To: ${messageId}`,
+        `References: ${messageId}`,
+        '',
+        replyBody
+    ].join('\r\n');
+
+    // Encode to base64url
+    const encodedEmail = btoa(email)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+    const response = await fetch(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                raw: encodedEmail,
+                threadId: threadId
+            })
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Failed to send reply: ${response.status}`);
+    }
+}
+
+// Delete email (move to trash)
+export async function deleteEmail(token: string, messageId: string): Promise<void> {
+    const response = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/trash`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Failed to delete email: ${response.status}`);
+    }
 }

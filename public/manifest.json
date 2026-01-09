@@ -15,7 +15,8 @@
     "client_id": "957386818024-tb2gemsgan4of6qs9q36q0e2qvhrqmdl.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/gmail.readonly",
-      "https://www.googleapis.com/auth/gmail.modify"
+      "https://www.googleapis.com/auth/gmail.modify",
+      "https://www.googleapis.com/auth/gmail.send"
     ]
   },
   "icons": {

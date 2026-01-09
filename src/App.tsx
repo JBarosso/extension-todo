@@ -6,19 +6,62 @@ import GitHubTab from './components/GitHubTab';
 import GmailTab from './components/GmailTab';
 import InfoModal from './components/InfoModal';
 import ThemeToggle from './components/ThemeToggle';
+import type { GitHubIssue } from './services/githubService';
+import type { GmailEmail } from './services/gmailService';
+
+interface CacheState {
+  githubIssues: GitHubIssue[];
+  gmailEmails: GmailEmail[];
+  lastGithubFetch: number;
+  lastGmailFetch: number;
+}
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('perso');
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [cache, setCache] = useState<CacheState>({
+    githubIssues: [],
+    gmailEmails: [],
+    lastGithubFetch: 0,
+    lastGmailFetch: 0,
+  });
+
+  const updateGitHubCache = (issues: GitHubIssue[]) => {
+    setCache(prev => ({
+      ...prev,
+      githubIssues: issues,
+      lastGithubFetch: Date.now(),
+    }));
+  };
+
+  const updateGmailCache = (emails: GmailEmail[]) => {
+    setCache(prev => ({
+      ...prev,
+      gmailEmails: emails,
+      lastGmailFetch: Date.now(),
+    }));
+  };
 
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'perso':
         return <PersoTab />;
       case 'github':
-        return <GitHubTab />;
+        return (
+          <GitHubTab
+            cachedIssues={cache.githubIssues}
+            lastFetch={cache.lastGithubFetch}
+            onUpdateCache={updateGitHubCache}
+          />
+        );
       case 'gmail':
-        return <GmailTab />;
+        return (
+          <GmailTab
+            cachedEmails={cache.gmailEmails}
+            lastFetch={cache.lastGmailFetch}
+            onUpdateCache={updateGmailCache}
+          />
+        );
       default:
         return <PersoTab />;
     }

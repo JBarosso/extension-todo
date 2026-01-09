@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { GmailEmail } from '../services/gmailService';
-import { authenticateGmail, fetchEmails, markAsRead, markAsUnread, toggleStar, revokeGmailAuth } from '../services/gmailService';
+import { authenticateGmail, fetchEmails, markAsRead, markAsUnread, toggleStar, revokeGmailAuth, deleteEmail } from '../services/gmailService';
+import EmailDetailModal from './EmailDetailModal';
 
 type FilterType = 'starred' | 'unread';
 
@@ -11,6 +12,7 @@ export default function GmailTab() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState<FilterType>('starred');
+    const [selectedEmail, setSelectedEmail] = useState<GmailEmail | null>(null);
 
     const handleAuthenticate = async () => {
         setLoading(true);
@@ -45,7 +47,10 @@ export default function GmailTab() {
         setLoading(true);
         setError(null);
         try {
-            const query = filterType === 'starred' ? 'is:starred' : 'is:unread';
+            // Only search in inbox, excluding spam and trash
+            const query = filterType === 'starred'
+                ? 'in:inbox is:starred'
+                : 'in:inbox is:unread';
             const fetchedEmails = await fetchEmails(authToken, query);
             setEmails(fetchedEmails);
         } catch (err) {
@@ -97,7 +102,17 @@ export default function GmailTab() {
     };
 
     const handleOpenEmail = (email: GmailEmail) => {
-        window.open(`https://mail.google.com/mail/u/0/#inbox/${email.id}`, '_blank');
+        setSelectedEmail(email);
+    };
+
+    const handleDelete = async (email: GmailEmail) => {
+        if (!token) return;
+        try {
+            await deleteEmail(token, email.id);
+            setEmails(emails.filter(e => e.id !== email.id));
+        } catch (err) {
+            console.error('Error deleting email:', err);
+        }
     };
 
     if (!authenticated) {
@@ -231,11 +246,24 @@ export default function GmailTab() {
                                 onToggleStar={handleToggleStar}
                                 onToggleRead={handleToggleRead}
                                 onOpen={handleOpenEmail}
+                                onDelete={handleDelete}
                             />
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Email Detail Modal */}
+            {selectedEmail && token && (
+                <EmailDetailModal
+                    email={selectedEmail}
+                    token={token}
+                    onClose={() => setSelectedEmail(null)}
+                    onUpdate={() => {
+                        if (token) loadEmails(token, filter);
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -245,9 +273,10 @@ interface EmailItemProps {
     onToggleStar: (email: GmailEmail) => void;
     onToggleRead: (email: GmailEmail) => void;
     onOpen: (email: GmailEmail) => void;
+    onDelete: (email: GmailEmail) => void;
 }
 
-function EmailItem({ email, onToggleStar, onToggleRead, onOpen }: EmailItemProps) {
+function EmailItem({ email, onToggleStar, onToggleRead, onOpen, onDelete }: EmailItemProps) {
     return (
         <div className="px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 group">
             <div className="flex items-start gap-2">
@@ -297,7 +326,7 @@ function EmailItem({ email, onToggleStar, onToggleRead, onOpen }: EmailItemProps
                         e.stopPropagation();
                         onToggleRead(email);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-500 transition-all flex-shrink-0"
+                    className="p-1 text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0"
                     title={email.isRead ? 'Marquer comme non lu' : 'Marquer comme lu'}
                 >
                     {email.isRead ? (
@@ -309,6 +338,20 @@ function EmailItem({ email, onToggleStar, onToggleRead, onOpen }: EmailItemProps
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                     )}
+                </button>
+
+                {/* Delete button */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(email);
+                    }}
+                    className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                    title="Supprimer"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
                 </button>
             </div>
         </div>
