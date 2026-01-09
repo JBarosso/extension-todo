@@ -93,13 +93,13 @@ We may update this privacy policy from time to time. Changes will be reflected i
 ## Contact
 
 For questions or concerns about this privacy policy, please contact:
-- GitHub Issues: [Your Repository URL]
-- Email: [Your Email]
+- GitHub Issues: https://github.com/JBarosso/extension-todo/issues
+- Email: barossojordan@gmail.com
 
 ## Open Source
 
 This extension is open source. You can review the code at:
-[Your GitHub Repository URL]
+https://github.com/JBarosso/extension-todo
 
 ---
 

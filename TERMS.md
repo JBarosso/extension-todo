@@ -74,7 +74,7 @@ You may stop using the Extension at any time by uninstalling it. We reserve the 
 
 ## Open Source
 
-This Extension is open source. The source code is available at [Your GitHub Repository URL] and is subject to the terms of the open source license.
+This Extension is open source. The source code is available at https://github.com/JBarosso/extension-todo and is subject to the terms of the open source license.
 
 ## Intellectual Property
 
@@ -86,13 +86,13 @@ You agree to indemnify and hold harmless the developers from any claims, damages
 
 ## Governing Law
 
-These terms shall be governed by and construed in accordance with the laws of [Your Jurisdiction], without regard to its conflict of law provisions.
+These terms shall be governed by and construed in accordance with the laws of France, without regard to its conflict of law provisions.
 
 ## Contact
 
 For questions about these Terms of Service, please contact:
-- GitHub Issues: [Your Repository URL]
-- Email: [Your Email]
+- GitHub Issues: https://github.com/JBarosso/extension-todo/issues
+- Email: barossojordan@gmail.com
 
 ## Severability
 
