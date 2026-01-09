@@ -38,7 +38,7 @@ export interface StorageData {
 
 // Default categories
 const defaultCategories: Category[] = [
-    { id: 'work', name: 'Travail', color: '#3b82f6' },
+    { id: 'work', name: 'Travail', color: '#a855f7' },
     { id: 'personal', name: 'Personnel', color: '#10b981' },
     { id: 'urgent', name: 'Urgent', color: '#ef4444' },
     { id: 'ideas', name: 'Idées', color: '#f59e0b' },

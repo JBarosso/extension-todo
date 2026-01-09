@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Todo, Category } from '../services/storageService';
-import { getTodos, addTodo, toggleTodo, deleteTodo, updateTodo, getCategories } from '../services/storageService';
+import { getTodos, addTodo, toggleTodo, deleteTodo, updateTodo, getCategories, saveTodos } from '../services/storageService';
 import { rescheduleReminders, cancelReminders } from '../services/reminderService';
 
 export default function PersoTab() {
@@ -9,6 +9,7 @@ export default function PersoTab() {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+    const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null);
 
     // Form state
     const [title, setTitle] = useState('');
@@ -136,6 +137,48 @@ export default function PersoTab() {
     };
 
     const getCategory = (id?: string) => categories.find(c => c.id === id);
+
+    // Drag and Drop Handlers
+    const handleDragStart = (e: React.DragEvent, todo: Todo) => {
+        setDraggedTodo(todo);
+        e.dataTransfer.effectAllowed = 'move';
+        // Transparent image to avoid default ghost
+        const img = new Image();
+        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+        e.dataTransfer.setDragImage(img, 0, 0);
+    };
+
+    const handleDragOver = (e: React.DragEvent, targetTodo: Todo) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        if (!draggedTodo || draggedTodo.id === targetTodo.id) return;
+
+        // Reorder only if target is not completed (we don't drag-drop completed items usually)
+        if (targetTodo.completed) return;
+
+        const sourceIndex = todos.findIndex(t => t.id === draggedTodo.id);
+        const targetIndex = todos.findIndex(t => t.id === targetTodo.id);
+
+        if (sourceIndex !== -1 && targetIndex !== -1 && sourceIndex !== targetIndex) {
+            const newTodos = [...todos];
+            const [movedItem] = newTodos.splice(sourceIndex, 1);
+            newTodos.splice(targetIndex, 0, movedItem);
+            setTodos(newTodos);
+        }
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        if (draggedTodo) {
+            await saveTodos(todos);
+            setDraggedTodo(null);
+        }
+    };
+
+    const handleDragEnd = () => {
+        setDraggedTodo(null);
+    };
 
     if (loading) {
         return (
@@ -320,6 +363,12 @@ export default function PersoTab() {
                                 onToggle={handleToggle}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                                draggable={true}
+                                onDragStart={(e) => handleDragStart(e, todo)}
+                                onDragOver={(e) => handleDragOver(e, todo)}
+                                onDrop={handleDrop}
+                                onDragEnd={handleDragEnd}
+                                isDragging={draggedTodo?.id === todo.id}
                             />
                         ))}
 
@@ -354,12 +403,49 @@ interface TodoItemProps {
     onToggle: (id: string) => void;
     onEdit: (todo: Todo) => void;
     onDelete: (id: string) => void;
+    draggable?: boolean;
+    onDragStart?: (e: React.DragEvent) => void;
+    onDragOver?: (e: React.DragEvent) => void;
+    onDrop?: (e: React.DragEvent) => void;
+    onDragEnd?: () => void;
+    isDragging?: boolean;
 }
 
-function TodoItem({ todo, category, onToggle, onEdit, onDelete }: TodoItemProps) {
+function TodoItem({
+    todo,
+    category,
+    onToggle,
+    onEdit,
+    onDelete,
+    draggable,
+    onDragStart,
+    onDragOver,
+    onDrop,
+    onDragEnd,
+    isDragging
+}: TodoItemProps) {
     return (
-        <div className="px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 group">
+        <div
+            className={`px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 group transition-all duration-200
+                       ${isDragging ? 'opacity-50 scale-[0.98] bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600' : ''}`}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+        >
             <div className="flex items-start gap-3">
+                {/* Drag Handle */}
+                {draggable && (
+                    <div
+                        className="mt-1 text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0"
+                        draggable={draggable}
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                        </svg>
+                    </div>
+                )}
+
                 <button
                     onClick={() => onToggle(todo.id)}
                     className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors
@@ -375,23 +461,25 @@ function TodoItem({ todo, category, onToggle, onEdit, onDelete }: TodoItemProps)
                 </button>
 
                 <div className="flex-1 min-w-0" onClick={() => onEdit(todo)}>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-sm ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
-                            {todo.title}
-                        </span>
-                        {category && (
-                            <span
-                                className="px-1.5 py-0.5 text-[10px] font-medium rounded-full"
-                                style={{
-                                    backgroundColor: `${category.color}20`,
-                                    color: category.color
-                                }}
-                            >
-                                {category.name}
+                    <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-sm ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
+                                {todo.title}
                             </span>
-                        )}
+                            {category && (
+                                <span
+                                    className="px-1.5 py-0.5 text-[10px] font-medium rounded-full flex-shrink-0"
+                                    style={{
+                                        backgroundColor: `${category.color}20`,
+                                        color: category.color
+                                    }}
+                                >
+                                    {category.name}
+                                </span>
+                            )}
+                        </div>
                         {todo.startDate && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-1 flex-shrink-0">
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
