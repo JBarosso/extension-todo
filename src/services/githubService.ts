@@ -9,6 +9,8 @@ export interface GitHubIssue {
   labels: { name: string; color: string }[];
   assignee?: { login: string; avatarUrl: string };
   createdAt: string;
+  startDate?: string;
+  endDate?: string;
   locallyModified?: boolean;
   modifiedAt?: number;
 }
@@ -152,6 +154,14 @@ async function fetchProjectV2Issues(
                         }
                         optionId
                       }
+                      ... on ProjectV2ItemFieldDateValue {
+                        date
+                        field {
+                          ... on ProjectV2FieldCommon {
+                            name
+                          }
+                        }
+                      }
                     }
                   }
                   content {
@@ -227,11 +237,20 @@ async function fetchProjectV2Issues(
     for (const item of items) {
       const fieldValues = item.fieldValues?.nodes || [];
 
-      const matchingField = fieldValues.find((fv: { field?: { name?: string }; optionId?: string }) =>
+      // Check status field match
+      const matchingField = fieldValues.find((fv: any) =>
         fv.field?.name === fieldName && fv.optionId === optionId
       );
 
       if (!matchingField) continue;
+
+      // Extract dates
+      const startDateField = fieldValues.find((fv: any) =>
+        fv.date && (fv.field?.name === 'Start date' || fv.field?.name === 'Start Date')
+      );
+      const endDateField = fieldValues.find((fv: any) =>
+        fv.date && (fv.field?.name === 'End date' || fv.field?.name === 'End Date')
+      );
 
       const content = item.content;
       if (!content) continue;
@@ -251,7 +270,9 @@ async function fetchProjectV2Issues(
             login: content.assignees.nodes[0].login,
             avatarUrl: content.assignees.nodes[0].avatarUrl
           } : undefined,
-          createdAt: content.createdAt
+          createdAt: content.createdAt,
+          startDate: startDateField?.date,
+          endDate: endDateField?.date
         });
       } else if (content.title) {
         issues.push({
@@ -261,7 +282,9 @@ async function fetchProjectV2Issues(
           url: '',
           state: 'draft',
           labels: [],
-          createdAt: content.createdAt
+          createdAt: content.createdAt,
+          startDate: startDateField?.date,
+          endDate: endDateField?.date
         });
       }
     }

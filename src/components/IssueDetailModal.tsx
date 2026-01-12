@@ -240,7 +240,7 @@ export default function IssueDetailModal({ issue, token, repo, onClose, onUpdate
                             {details?.body && (
                                 <div>
                                     <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</h3>
-                                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap" style={{ wordWrap: 'break-word' }}>
+                                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
                                         {details.body}
                                     </div>
                                 </div>
@@ -267,7 +267,7 @@ export default function IssueDetailModal({ issue, token, repo, onClose, onUpdate
                                                     {new Date(comment.created_at).toLocaleDateString('fr-FR')}
                                                 </span>
                                             </div>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
                                                 {comment.body}
                                             </p>
                                         </div>

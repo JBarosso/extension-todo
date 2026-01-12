@@ -251,11 +251,25 @@ function IssueItem({ issue, onClick }: IssueItemProps) {
                         </div>
 
                         {/* Date / Meta */}
-                        {issue.createdAt && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                {new Date(issue.createdAt).toLocaleDateString()}
-                            </span>
-                        )}
+                        <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+                            {issue.startDate && issue.endDate ? (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                    {new Date(issue.startDate).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })} - {new Date(issue.endDate).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                </span>
+                            ) : issue.startDate ? (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                    Start: {new Date(issue.startDate).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })}
+                                </span>
+                            ) : issue.endDate ? (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                    {new Date(issue.endDate).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                </span>
+                            ) : issue.createdAt ? (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                                    {new Date(issue.createdAt).toLocaleDateString()}
+                                </span>
+                            ) : null}
+                        </div>
                     </div>
 
                     {/* Meta - Number & Assignee */}
