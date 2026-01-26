@@ -141,6 +141,36 @@ export async function saveCategories(categories: Category[]): Promise<void> {
     await chrome.storage.local.set({ categories });
 }
 
+// Add a new category
+export async function addCategory(name: string, color: string): Promise<Category> {
+    const categories = await getCategories();
+    const newCategory: Category = {
+        id: crypto.randomUUID(),
+        name,
+        color
+    };
+    categories.push(newCategory);
+    await saveCategories(categories);
+    return newCategory;
+}
+
+// Update a category
+export async function updateCategory(id: string, updates: Partial<Omit<Category, 'id'>>): Promise<void> {
+    const categories = await getCategories();
+    const index = categories.findIndex(c => c.id === id);
+    if (index !== -1) {
+        categories[index] = { ...categories[index], ...updates };
+        await saveCategories(categories);
+    }
+}
+
+// Delete a category
+export async function deleteCategory(id: string): Promise<void> {
+    const categories = await getCategories();
+    const filtered = categories.filter(c => c.id !== id);
+    await saveCategories(filtered);
+}
+
 // Get theme
 export async function getTheme(): Promise<Theme> {
     if (!isExtension) {

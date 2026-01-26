@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Todo, Category } from '../services/storageService';
-import { getTodos, addTodo, toggleTodo, deleteTodo, updateTodo, getCategories, saveTodos } from '../services/storageService';
+import { getTodos, addTodo, toggleTodo, deleteTodo, updateTodo, getCategories, saveTodos, addCategory, updateCategory, deleteCategory } from '../services/storageService';
 import { rescheduleReminders, cancelReminders } from '../services/reminderService';
 
 export default function PersoTab() {
@@ -10,6 +10,11 @@ export default function PersoTab() {
     const [showForm, setShowForm] = useState(false);
     const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
     const [draggedTodo, setDraggedTodo] = useState<Todo | null>(null);
+    const [showCategoryManager, setShowCategoryManager] = useState(false);
+    const [showCategoryForm, setShowCategoryForm] = useState(false);
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryColor, setNewCategoryColor] = useState('#a855f7');
 
     // Form state
     const [title, setTitle] = useState('');
@@ -138,6 +143,59 @@ export default function PersoTab() {
 
     const getCategory = (id?: string) => categories.find(c => c.id === id);
 
+    const handleAddCategory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!newCategoryName.trim()) return;
+
+        if (editingCategory) {
+            await updateCategory(editingCategory.id, {
+                name: newCategoryName.trim(),
+                color: newCategoryColor
+            });
+            setCategories(categories.map(c => 
+                c.id === editingCategory.id 
+                    ? { ...c, name: newCategoryName.trim(), color: newCategoryColor }
+                    : c
+            ));
+            setEditingCategory(null);
+        } else {
+            const newCategory = await addCategory(newCategoryName.trim(), newCategoryColor);
+            setCategories([...categories, newCategory]);
+        }
+        
+        setNewCategoryName('');
+        setNewCategoryColor('#a855f7');
+        setShowCategoryForm(false);
+    };
+
+    const handleEditCategory = (category: Category) => {
+        setEditingCategory(category);
+        setNewCategoryName(category.name);
+        setNewCategoryColor(category.color);
+        setShowCategoryForm(true);
+    };
+
+    const handleDeleteCategory = async (id: string) => {
+        if (confirm('Êtes-vous sûr de vouloir supprimer ce label ? Les tâches associées ne perdront pas leur label mais il ne sera plus visible.')) {
+            await deleteCategory(id);
+            setCategories(categories.filter(c => c.id !== id));
+            // Retirer le label des tâches qui l'utilisent
+            const updatedTodos = todos.map(t => 
+                t.categoryId === id ? { ...t, categoryId: undefined } : t
+            );
+            setTodos(updatedTodos);
+            await saveTodos(updatedTodos);
+        }
+    };
+
+    const resetCategoryForm = () => {
+        setNewCategoryName('');
+        setNewCategoryColor('#a855f7');
+        setEditingCategory(null);
+        setShowCategoryForm(false);
+    };
+
     // Drag and Drop Handlers
     const handleDragStart = (e: React.DragEvent, todo: Todo) => {
         setDraggedTodo(todo);
@@ -193,6 +251,141 @@ export default function PersoTab() {
 
     return (
         <div className="flex flex-col h-full">
+            {/* Header with settings button */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tâches personnelles</h2>
+                <button
+                    onClick={() => setShowCategoryManager(!showCategoryManager)}
+                    className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                    title="Gérer les labels"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
+
+            {/* Category Manager */}
+            {showCategoryManager && (
+                <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Gestion des labels</h3>
+                        <button
+                            onClick={() => {
+                                resetCategoryForm();
+                                setShowCategoryForm(true);
+                            }}
+                            className="px-2 py-1 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600
+                                       text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800
+                                       flex items-center gap-1"
+                        >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Nouveau label
+                        </button>
+                    </div>
+
+                    {/* Formulaire de création/édition de catégorie */}
+                    {showCategoryForm && (
+                        <form onSubmit={handleAddCategory} className="mb-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2">
+                            <div className="flex gap-2 items-end">
+                                <div className="flex-1">
+                                    <input
+                                        type="text"
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                        placeholder="Nom du label..."
+                                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 
+                                                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={newCategoryColor}
+                                        onChange={(e) => setNewCategoryColor(e.target.value)}
+                                        className="w-10 h-10 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                                        title="Choisir une couleur"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!newCategoryName.trim()}
+                                        className="px-3 py-1.5 text-xs font-medium rounded-lg
+                                                   bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-700
+                                                   text-white disabled:text-gray-500 transition-colors"
+                                    >
+                                        {editingCategory ? 'Modifier' : 'Créer'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={resetCategoryForm}
+                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600
+                                                   text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    >
+                                        Annuler
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    )}
+
+                    {/* Liste des labels */}
+                    <div className="space-y-1">
+                        {categories.length === 0 ? (
+                            <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">Aucun label</p>
+                        ) : (
+                            categories.map(cat => (
+                                <div
+                                    key={cat.id}
+                                    className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                                >
+                                    <div className="flex items-center gap-2 flex-1">
+                                        <div
+                                            className="w-4 h-4 rounded-full"
+                                            style={{ backgroundColor: cat.color }}
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{cat.name}</span>
+                                        <span
+                                            className="px-1.5 py-0.5 text-[10px] font-medium rounded-full"
+                                            style={{
+                                                backgroundColor: `${cat.color}20`,
+                                                color: cat.color
+                                            }}
+                                        >
+                                            {cat.name}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => handleEditCategory(cat)}
+                                            className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                                            title="Modifier"
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteCategory(cat.id)}
+                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                            title="Supprimer"
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Add button or form */}
             {showForm ? (
                 <form onSubmit={handleSubmit} className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-3">
